@@ -1,0 +1,81 @@
+set -euo pipefail
+D="$HOME/.gftt-judiciary-owner-handoff"
+IMAGE=gftt-browser-sizecheck:local
+if ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  echo 'STOP: Previously built browser image is absent from this Cloud Shell. No login session started.'
+  exit 1
+fi
+if docker ps --format '{{.Names}}' | grep -Fxq gftt-owner-judiciary-login; then
+  echo 'LOGIN_VIEWER_ALREADY_RUNNING — use the existing Cloud Shell Web Preview tab on port 8080.'
+  exit 0
+fi
+umask 077
+mkdir -p "$D"
+chmod 700 "$D"
+if test -e "$D/judiciary-state.cms"; then
+  echo 'STOP: Existing encrypted session found. Do not overwrite; ask ChatGPT to recover it.'
+  exit 1
+fi
+python3 - <<'PYSETUP'
+import base64,zlib,hashlib,os,pathlib
+root=pathlib.Path.home()/'.gftt-judiciary-owner-handoff'
+source=zlib.decompress(base64.b64decode('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'))
+assert hashlib.sha256(source).hexdigest()=='1b13ee979ecd60102e5834b4fbf78a1356587dfea2b71dfe09966056ff1c95de', 'source checksum mismatch'
+cert=base64.b64decode('LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUVQekNDQXFlZ0F3SUJBZ0lVZDhZUlZvaVE3NUVxcENNTVBiM21kQTJ4ZXk0d0RRWUpLb1pJaHZjTkFRRUwKQlFBd0x6RXRNQ3NHQTFVRUF3d2tSMFpVVkNCS2RXUnBZMmxoY25rZ2IzZHVaWElnYzJWemMybHZiaUJvWVc1awpiMlptTUI0WERUSTJNVEF5T0RBeU1ETXdOMW9YRFRJMk1URXlOekF5TURNd04xb3dMekV0TUNzR0ExVUVBd3drClIwWlVWQ0JLZFdScFkybGhjbmtnYjNkdVpYSWdjMlZ6YzJsdmJpQm9ZVzVrYjJabU1JSUJvakFOQmdrcWhraUcKOXcwQkFRRUZBQU9DQVk4QU1JSUJpZ0tDQVlFQXk2RzkxL3MzVTIwUms3dlBSa3ladEEzU1hTbk1ub0VOVG5vdAp4Z1lIeldlYkRwcm5KU3ZVRHZzd2hObkJQZlBjNVEzZnNHR1FWRUU4QmlBbFBwZjZJdTVRU1NBekdmTUNMRysvCkdFSW15eDZGbXFOS004Zmg3Sldocjk4a2VCeEFmTjlZcUxWMUx5elFNU2VyZ213SER2QVhOK0RyWGhjdzVUci8KSCtLRVBJMExmaEdyYllka0NQMDJMTExSWllEOEpLcGwyUVh2ZVBPOW5MYTZ1c3FPbEcwbGRuT1JkdnpDaC9VRwpnVk8xZFZGdmg5a0N1TG1uSGpoOTMvMkJFdkE5cEFYaVhvdlBIbDhqWUlFc21ybS96dGUzMG1IWGdDOEsxSHNzCmJYZHp0emkwUnA4eG1GdEswL2VtZVliZ0QrbG5Bb1pETzgvYmR3S0RpaExsUVJKY3lEWmplUmVMemNma2lHdnIKSlhTQnlQdExBVlJNN3BVWDhJaDA1c3pFdTY0QUdQaHZpUytIM0lwOXpoZ1VRWFRXa1d6QlNJNEltcVk1eDFVVgpFUjRtMEdHUTVxdm4vbW5lMGpxRkthbk5sdHJwVDFKeUZpQ3lRd2xDN3RkbGlZdnBkVC9ubm10dzZDVENrYjR1CkltVEdyVUZVMXNpWXF0NkF0Zk1UeDNUSjd6eUpBZ01CQUFHalV6QlJNQjBHQTFVZERnUVdCQlFDdVUwVTlvRzAKazVuQ0pCSW01MnhmVW5UcCtUQWZCZ05WSFNNRUdEQVdnQlFDdVUwVTlvRzBrNW5DSkJJbTUyeGZVblRwK1RBUApCZ05WSFJNQkFmOEVCVEFEQVFIL01BMEdDU3FHU0liM0RRRUJDd1VBQTRJQmdRQjV3RUpJTDlzY25KbU5yajhRCkRRTzRFaXNFRG9QUmp3YUJjMlVpNEh4MEQwMUZjU0FPMGgzWHZEUnhaakx5R1pSNkVzTHZJNCt1TDcvLzM1Z00KSEMwaWtlRllQRS9WcmdZaDl5eWFFV0tVREJrUitjcDRXZWNqNDA4WVBodHErOWdSSURmL1FuT2FoZC94dFZHKwo3dUttRklwK1NEcWM4dG4xU25JMzlLVVdTenVzeGVwUHZkVGNGeGZ1SWszRWJ1Z3NHYWxBM2tObVVwM1VCYlVZCmlxalFqQnhhdmMvZzV5WllpdlVZeDFhR0lVR0sxNHd5WlRPWmI2ZGVmd3FUekdvU3ZWRnhyT1VxUk1rUUJxY1kKSE5xZVV3OFVtMEhIajlScDlFS3pITUE2R0pRcXZDVmRBRHp2bGNMQ2N2NWN3RlpFazVKVnRvd1pNTjlTYTVsQQpJR2dMQ1BPYmh3TTJUOU9pemdVWWo2OWk2Q0FqaktQV2JpeWt1VVR1bFFhTGJGcEF5OG9PMlZCcnYwMWlRMDQzCjdJY3hHQUxycDhaZExzZmMrcGNmRktDQzROdDlVUVY2ckhIclRrMnNYc2xTOVBLbE1KNmsyMGxiQ1NReEVvbDAKK2xrd1lSdTJFWDJHMWZ5b2ZqYXZnMFh3eW1VVUI3MktrNVNJR0ZMWkQzb1BxZ0E9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K')
+(root/'owner_viewer.py').write_bytes(source)
+(root/'recipient.crt').write_bytes(cert)
+os.chmod(root/'owner_viewer.py',0o600)
+os.chmod(root/'recipient.crt',0o600)
+print('SOURCE_CHECKSUM_VERIFIED')
+PYSETUP
+if ! openssl x509 -in "$D/recipient.crt" -noout -fingerprint -sha256 | grep -Fq 'DE:7D:3E:E6:35:10:39:92:2D:3F:B6:EA:3E:E1:79:D5:E7:47:9E:D1:DA:B0:C2:6C:99:BD:8A:24:45:34:34:24'; then
+ echo 'STOP: VM PUBLIC CERTIFICATE PIN MISMATCH'; exit 1
+fi
+if ! docker run --rm --entrypoint sh "$IMAGE" -c 'command -v openssl >/dev/null'; then
+ echo 'STOP: IMAGE HAS NO OPENSSL TO SEAL SESSION'; exit 1
+fi
+cat > "$D/upload_encrypted_state.sh" <<'SHWATCH'
+#!/bin/bash
+set -uo pipefail
+D="$HOME/.gftt-judiciary-owner-handoff"
+FILE="$D/judiciary-state.cms"
+URI='gs://gen-lang-client-0502169420_cloudbuild/gftt-legal-secretary/judiciary-owner-browser-state-20261027.cms'
+for i in $(seq 1 750); do
+ if [ -s "$FILE" ]; then
+   if gcloud storage ls "$URI" >/dev/null 2>&1; then
+     printf 'UPLOAD_FAILED' > "$D/transfer_status"
+     echo 'Encrypted transfer object already exists; stopped to avoid overwrite.' >> "$D/transfer_audit.log"
+     exit 1
+   fi
+   if gcloud storage cp "$FILE" "$URI" --no-clobber --quiet >/dev/null 2>&1; then
+     printf 'UPLOAD_SUCCESS' > "$D/transfer_status"
+     printf '%s\n' "$URI" > "$D/transfer_uri.txt"
+     echo 'ENCRYPTED_TRANSFER_UPLOADED' >> "$D/transfer_audit.log"
+     exit 0
+   else
+     printf 'UPLOAD_FAILED' > "$D/transfer_status"
+     echo 'ENCRYPTED_TRANSFER_FAILED' >> "$D/transfer_audit.log"
+     exit 1
+   fi
+ fi
+ sleep 2
+done
+printf 'UPLOAD_FAILED' > "$D/transfer_status"
+echo 'Encrypted transfer watcher timed out.' >> "$D/transfer_audit.log"
+SHWATCH
+chmod 700 "$D/upload_encrypted_state.sh"
+nohup "$D/upload_encrypted_state.sh" > "$D/upload_watcher.log" 2>&1 < /dev/null &
+docker run --rm -d --name gftt-owner-judiciary-login \
+ --network bridge --cpus=1 --memory=1g --pids-limit=256 --shm-size=128m \
+ --user "$(id -u):$(id -g)" -e HOME=/tmp \
+ -p 127.0.0.1:8080:8080 -v "$D:/vault:rw" \
+ --entrypoint python "$IMAGE" /vault/owner_viewer.py
+sleep 3
+if curl -fsS --max-time 8 http://127.0.0.1:8080/healthz >/dev/null; then
+ echo 'CLOUD_BROWSER_LOGIN_VIEWER_READY'
+ if [ -n "${WEB_HOST:-}" ]; then echo "OWNER_GOOGLE_PROTECTED_PREVIEW=https://8080-$WEB_HOST"; fi
+ echo 'Open the Cloud Shell Web Preview button and choose port 8080. This shows the REAL remote Judiciary browser.'
+ echo 'Sign in there and click Save authenticated session securely after the dashboard opens.'
+else
+ echo 'LOGIN_VIEWER_NOT_READY. Inspect docker logs gftt-owner-judiciary-login (no passwords are logged).'
+fi
